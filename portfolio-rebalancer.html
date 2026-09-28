@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portfolio Rebalancing Assistant — thetanoli.com</title>
+    <meta name="description" content="Full rebalancing assistant that shows exactly what to buy/sell to hit target allocation">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0a0e17;
+            color: #e0e6ef;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .container { max-width: 900px; margin: 0 auto; padding: 2rem 1.5rem; width: 100%; }
+        .header { text-align: center; margin-bottom: 2rem; }
+        .header h1 { font-size: 1.8rem; color: #f0b429; margin-bottom: 0.5rem; }
+        .header p { color: #8892a4; font-size: 0.95rem; max-width: 650px; margin: 0 auto; }
+        .header .badge {
+            display: inline-block; background: #1a2235; color: #f0b429;
+            padding: 0.2rem 0.8rem; border-radius: 4px; font-size: 0.75rem;
+            margin-top: 0.5rem; border: 1px solid #2a3548;
+        }
+        .calc-grid {
+            display: grid; gap: 1.5rem;
+            grid-template-columns: 1fr 1fr;
+        }
+        @media (max-width: 700px) { .calc-grid { grid-template-columns: 1fr; } }
+        .card {
+            background: #111827; border: 1px solid #1e293b; border-radius: 8px;
+            padding: 1.5rem;
+        }
+        .card h2 { font-size: 1.1rem; color: #f0b429; margin-bottom: 1rem; border-bottom: 1px solid #1e293b; padding-bottom: 0.5rem; }
+        .input-group { margin-bottom: 0.8rem; }
+        .input-group label { display: block; font-size: 0.85rem; color: #94a3b8; margin-bottom: 0.3rem; }
+        .input-group input, .input-group select {
+            width: 100%; padding: 0.6rem 0.8rem; background: #0a0e17;
+            border: 1px solid #2a3548; border-radius: 4px; color: #e0e6ef;
+            font-size: 0.95rem;
+        }
+        .input-group input:focus, .input-group select:focus {
+            outline: none; border-color: #f0b429;
+        }
+        .btn {
+            width: 100%; padding: 0.8rem; border: none; border-radius: 6px;
+            font-size: 1rem; font-weight: 600; cursor: pointer;
+            background: #f0b429; color: #0a0e17; margin-top: 0.5rem;
+            transition: background 0.2s;
+        }
+        .btn:hover { background: #d49420; }
+        .result-card {
+            background: #0d1520; border: 1px solid #f0b429; border-radius: 8px;
+            padding: 1.5rem; margin-top: 1.5rem;
+        }
+        .result-card h3 { color: #f0b429; margin-bottom: 1rem; font-size: 1rem; }
+        .result-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+        @media (max-width: 500px) { .result-grid { grid-template-columns: 1fr; } }
+        .result-item {
+            background: #111827; border-radius: 6px; padding: 1rem;
+            text-align: center;
+        }
+        .result-item .value { font-size: 1.5rem; font-weight: 700; color: #f0b429; }
+        .result-item .label { font-size: 0.8rem; color: #94a3b8; margin-top: 0.2rem; }
+        .result-item .negative { color: #ef4444; }
+        .result-item .positive { color: #22c55e; }
+        .chart-wrap { margin-top: 1.5rem; background: #0d1520; border-radius: 8px; padding: 1rem; border: 1px solid #1e293b; }
+        .footer { text-align: center; padding: 2rem; color: #4a5568; font-size: 0.8rem; }
+        .footer a { color: #f0b429; text-decoration: none; }
+        .footer a:hover { text-decoration: underline; }
+        /* Toggle switch for boolean inputs */
+        .toggle-wrap { display: flex; align-items: center; gap: 0.5rem; }
+        .toggle-wrap input[type="checkbox"] {
+            width: 44px; height: 24px; appearance: none; background: #2a3548;
+            border-radius: 12px; position: relative; cursor: pointer;
+            border: none;
+        }
+        .toggle-wrap input[type="checkbox"]::before {
+            content: ''; position: absolute; width: 20px; height: 20px;
+            background: #e0e6ef; border-radius: 50%; top: 2px; left: 2px;
+            transition: 0.2s;
+        }
+        .toggle-wrap input[type="checkbox"]:checked {
+            background: #f0b429;
+        }
+        .toggle-wrap input[type="checkbox"]:checked::before {
+            left: 22px; background: #0a0e17;
+        }
+        .slider-wrap { margin-top: 1rem; }
+        .slider-wrap input[type="range"] {
+            width: 100%; height: 6px; background: #2a3548; border-radius: 3px;
+            appearance: none; outline: none;
+        }
+        .slider-wrap input[type="range"]::-webkit-slider-thumb {
+            appearance: none; width: 20px; height: 20px; background: #f0b429;
+            border-radius: 50%; cursor: pointer;
+        }
+        .slider-value { color: #f0b429; font-weight: 700; font-size: 1.1rem; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>Portfolio Rebalancing Assistant</h1>
+        <p>Full rebalancing assistant that shows exactly what to buy/sell to hit target allocation</p>
+        <span class="badge">thetanoli.com — Investment Tools</span>
+    </div>
+
+    <div class="calc-grid">
+        <div class="card">
+            <h2>📊 Inputs</h2>
+            
+            <div class="input-group">
+                <label>Current Holdings ($)</label>
+                <input type="number" id="current_holdings_$" value="10000" step="any">
+            </div>
+            <div class="input-group">
+                <label>Target Allocation (%)</label>
+                <input type="number" id="target_allocation_percent" value="50000" step="any">
+            </div><button class="btn" onclick="calculate()">Calculate</button>
+        </div>
+        <div class="card">
+            <h2>📈 Results</h2>
+            <div id="results">
+                <p style="color: #64748b; text-align: center; padding: 2rem 0;">Enter your values and click Calculate</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="chart-wrap">
+        <canvas id="calcChart"></canvas>
+    </div>
+
+    <div class="footer">
+        <p><a href="https://thetanoli.com">thetanoli.com</a> — Investment Tools for Informed Traders</p>
+        <p style="margin-top: 0.3rem;">Data is for informational purposes only. Not financial advice.</p>
+    </div>
+</div>
+
+<script>
+
+let chartInstance = null;
+
+function formatCurrency(val) {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(val);
+}
+
+function getVal(id) {
+    const el = document.getElementById(id);
+    if (!el) return 0;
+    if (el.type === 'checkbox') return el.checked ? 1 : 0;
+    return parseFloat(el.value) || 0;
+}
+
+function calculate() {
+
+    const holdings = getVal("current_holdings_($)");
+    const targets = getVal("target_allocation_(%)");
+    
+    const h = holdings.split(",").map(parseFloat).filter(v => !isNaN(v));
+    const t = targets.split(",").map(parseFloat).filter(v => !isNaN(v));
+    
+    if (h.length === 0 || t.length === 0 || h.length !== t.length) {
+        document.getElementById('results').innerHTML = '<p style="color:#ef4444;">Enter holdings and targets as comma-separated values (e.g., 5000,3000 and 60,40)</p>';
+        return;
+    }
+    
+    const total = h.reduce((a,b) => a+b, 0);
+    const normT = t.map(v => v / t.reduce((a,b) => a+b, 0));
+    
+    let tableHTML = `<table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
+        <tr style="color:#f0b429;border-bottom:1px solid #2a3548;"><th style="padding:0.5rem;text-align:left;">Asset</th><th style="padding:0.5rem;text-align:right;">Current</th><th style="padding:0.5rem;text-align:right;">Target</th><th style="padding:0.5rem;text-align:right;">Action</th><th style="padding:0.5rem;text-align:right;">Amount</th></tr>`;
+    
+    let cashNeeded = 0;
+    let totalBuys = 0, totalSells = 0;
+    
+    for (let i = 0; i < h.length; i++) {
+        const targetVal = normT[i] * total;
+        const diff = targetVal - h[i];
+        const action = diff > 0 ? 'BUY' : 'SELL';
+        const color = diff > 0 ? '#22c55e' : '#ef4444';
+        if (diff > 0) totalBuys += diff;
+        else totalSells += Math.abs(diff);
+        tableHTML += `<tr style="border-bottom:1px solid #1e293b;">
+            <td style="padding:0.4rem;">Asset ${i+1}</td>
+            <td style="padding:0.4rem;text-align:right;">${formatCurrency(h[i])}</td>
+            <td style="padding:0.4rem;text-align:right;">${formatCurrency(targetVal)}</td>
+            <td style="padding:0.4rem;text-align:right;color:${color};">${action}</td>
+            <td style="padding:0.4rem;text-align:right;color:${color};">${formatCurrency(Math.abs(diff))}</td>
+        </tr>`;
+    }
+    cashNeeded = totalBuys - totalSells;
+    tableHTML += `</table>
+        <p style="margin-top:0.8rem;color:${cashNeeded > 0 ? '#ef4444' : '#22c55e'};text-align:right;">Cash Needed: ${formatCurrency(Math.abs(cashNeeded))}</p>`;
+    
+    document.getElementById('results').innerHTML = tableHTML;
+    
+    const ctx = document.getElementById('calcChart').getContext('2d');
+    if (chartInstance) chartInstance.destroy();
+    chartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: h.map((_, i) => 'Asset ' + (i+1)),
+            datasets: [
+                { label: 'Current', data: h, backgroundColor: '#64748b' },
+                { label: 'Target', data: normT.map(v => v * total), backgroundColor: '#f0b429' }
+            ]
+        },
+        options: { responsive: true, plugins: { legend: { labels: { color: '#94a3b8' } } },
+            scales: { x: { ticks: { color: '#64748b' } }, y: { ticks: { color: '#64748b', callback: v => '$' + (v/1000).toFixed(0) + 'k' } } } }
+    });
+}
+</script>
+</body>
+</html>

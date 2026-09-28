@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Market Downturn Recovery Planner — thetanoli.com</title>
+    <meta name="description" content="Estimates recovery time from market drawdowns using historical rebound data">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0a0e17;
+            color: #e0e6ef;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .container { max-width: 900px; margin: 0 auto; padding: 2rem 1.5rem; width: 100%; }
+        .header { text-align: center; margin-bottom: 2rem; }
+        .header h1 { font-size: 1.8rem; color: #f0b429; margin-bottom: 0.5rem; }
+        .header p { color: #8892a4; font-size: 0.95rem; max-width: 650px; margin: 0 auto; }
+        .header .badge {
+            display: inline-block; background: #1a2235; color: #f0b429;
+            padding: 0.2rem 0.8rem; border-radius: 4px; font-size: 0.75rem;
+            margin-top: 0.5rem; border: 1px solid #2a3548;
+        }
+        .calc-grid {
+            display: grid; gap: 1.5rem;
+            grid-template-columns: 1fr 1fr;
+        }
+        @media (max-width: 700px) { .calc-grid { grid-template-columns: 1fr; } }
+        .card {
+            background: #111827; border: 1px solid #1e293b; border-radius: 8px;
+            padding: 1.5rem;
+        }
+        .card h2 { font-size: 1.1rem; color: #f0b429; margin-bottom: 1rem; border-bottom: 1px solid #1e293b; padding-bottom: 0.5rem; }
+        .input-group { margin-bottom: 0.8rem; }
+        .input-group label { display: block; font-size: 0.85rem; color: #94a3b8; margin-bottom: 0.3rem; }
+        .input-group input, .input-group select {
+            width: 100%; padding: 0.6rem 0.8rem; background: #0a0e17;
+            border: 1px solid #2a3548; border-radius: 4px; color: #e0e6ef;
+            font-size: 0.95rem;
+        }
+        .input-group input:focus, .input-group select:focus {
+            outline: none; border-color: #f0b429;
+        }
+        .btn {
+            width: 100%; padding: 0.8rem; border: none; border-radius: 6px;
+            font-size: 1rem; font-weight: 600; cursor: pointer;
+            background: #f0b429; color: #0a0e17; margin-top: 0.5rem;
+            transition: background 0.2s;
+        }
+        .btn:hover { background: #d49420; }
+        .result-card {
+            background: #0d1520; border: 1px solid #f0b429; border-radius: 8px;
+            padding: 1.5rem; margin-top: 1.5rem;
+        }
+        .result-card h3 { color: #f0b429; margin-bottom: 1rem; font-size: 1rem; }
+        .result-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+        @media (max-width: 500px) { .result-grid { grid-template-columns: 1fr; } }
+        .result-item {
+            background: #111827; border-radius: 6px; padding: 1rem;
+            text-align: center;
+        }
+        .result-item .value { font-size: 1.5rem; font-weight: 700; color: #f0b429; }
+        .result-item .label { font-size: 0.8rem; color: #94a3b8; margin-top: 0.2rem; }
+        .result-item .negative { color: #ef4444; }
+        .result-item .positive { color: #22c55e; }
+        .chart-wrap { margin-top: 1.5rem; background: #0d1520; border-radius: 8px; padding: 1rem; border: 1px solid #1e293b; }
+        .footer { text-align: center; padding: 2rem; color: #4a5568; font-size: 0.8rem; }
+        .footer a { color: #f0b429; text-decoration: none; }
+        .footer a:hover { text-decoration: underline; }
+        /* Toggle switch for boolean inputs */
+        .toggle-wrap { display: flex; align-items: center; gap: 0.5rem; }
+        .toggle-wrap input[type="checkbox"] {
+            width: 44px; height: 24px; appearance: none; background: #2a3548;
+            border-radius: 12px; position: relative; cursor: pointer;
+            border: none;
+        }
+        .toggle-wrap input[type="checkbox"]::before {
+            content: ''; position: absolute; width: 20px; height: 20px;
+            background: #e0e6ef; border-radius: 50%; top: 2px; left: 2px;
+            transition: 0.2s;
+        }
+        .toggle-wrap input[type="checkbox"]:checked {
+            background: #f0b429;
+        }
+        .toggle-wrap input[type="checkbox"]:checked::before {
+            left: 22px; background: #0a0e17;
+        }
+        .slider-wrap { margin-top: 1rem; }
+        .slider-wrap input[type="range"] {
+            width: 100%; height: 6px; background: #2a3548; border-radius: 3px;
+            appearance: none; outline: none;
+        }
+        .slider-wrap input[type="range"]::-webkit-slider-thumb {
+            appearance: none; width: 20px; height: 20px; background: #f0b429;
+            border-radius: 50%; cursor: pointer;
+        }
+        .slider-value { color: #f0b429; font-weight: 700; font-size: 1.1rem; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>Market Downturn Recovery Planner</h1>
+        <p>Estimates recovery time from market drawdowns using historical rebound data</p>
+        <span class="badge">thetanoli.com — Investment Tools</span>
+    </div>
+
+    <div class="calc-grid">
+        <div class="card">
+            <h2>📊 Inputs</h2>
+            
+            <div class="input-group">
+                <label>Current Portfolio Value</label>
+                <input type="number" id="current_portfolio_value" value="10000" step="any">
+            </div>
+            <div class="input-group">
+                <label>Drawdown (%)</label>
+                <input type="number" id="drawdown_percent" value="30" step="any">
+            </div>
+            <div class="input-group">
+                <label>Expected Annual Return (%)</label>
+                <input type="number" id="expected_annual_return_percent" value="7" step="any">
+            </div>
+            <div class="input-group">
+                <label>Monthly Contribution During Recovery</label>
+                <input type="number" id="monthly_contribution_during_recovery" value="500" step="any">
+            </div><button class="btn" onclick="calculate()">Calculate</button>
+        </div>
+        <div class="card">
+            <h2>📈 Results</h2>
+            <div id="results">
+                <p style="color: #64748b; text-align: center; padding: 2rem 0;">Enter your values and click Calculate</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="chart-wrap">
+        <canvas id="calcChart"></canvas>
+    </div>
+
+    <div class="footer">
+        <p><a href="https://thetanoli.com">thetanoli.com</a> — Investment Tools for Informed Traders</p>
+        <p style="margin-top: 0.3rem;">Data is for informational purposes only. Not financial advice.</p>
+    </div>
+</div>
+
+<script>
+
+let chartInstance = null;
+
+function formatCurrency(val) {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(val);
+}
+
+function getVal(id) {
+    const el = document.getElementById(id);
+    if (!el) return 0;
+    if (el.type === 'checkbox') return el.checked ? 1 : 0;
+    return parseFloat(el.value) || 0;
+}
+
+function calculate() {
+
+    const P = getVal("current_portfolio_value");
+    const drawdown = getVal("drawdown_(%)") / 100;
+    const r = getVal("expected_annual_return_(%)") / 100;
+    const PMT = getVal("monthly_contribution_during_recovery") || 0;
+    
+    const loss = P * drawdown;
+    const reducedValue = P - loss;
+    let naturalRecovery = 0;
+    let temp = reducedValue;
+    while (temp < P && naturalRecovery < 100) {
+        temp = temp * (1 + r);
+        naturalRecovery++;
+    }
+    
+    let contribRecovery = 0;
+    temp = reducedValue;
+    const monthlyR = r / 12;
+    while (temp < P && contribRecovery < 200) {
+        temp = temp * (1 + monthlyR) + PMT;
+        contribRecovery++;
+    }
+    contribRecovery = Math.round(contribRecovery / 12 * 10) / 10;
+    
+    const data = [];
+    temp = reducedValue;
+    for (let y = 0; y <= Math.max(naturalRecovery + 2, 10); y++) {
+        data.push({ year: y, value: Math.round(temp), target: P });
+        if (y < Math.max(naturalRecovery + 2, 10)) temp = temp * (1 + r);
+    }
+    
+    document.getElementById('results').innerHTML = `
+        <div class="result-grid">
+            <div class="result-item"><div class="value negative">${formatCurrency(loss)}</div><div class="label">Loss Amount</div></div>
+            <div class="result-item"><div class="value">${naturalRecovery} years</div><div class="label">Natural Recovery Time</div></div>
+            <div class="result-item"><div class="value positive">${contribRecovery} years</div><div class="label">With Contributions</div></div>
+            <div class="result-item"><div class="value">${(drawdown * 100).toFixed(1)}%</div><div class="label">Drawdown Severity</div></div>
+        </div>`;
+    
+    const ctx = document.getElementById('calcChart').getContext('2d');
+    if (chartInstance) chartInstance.destroy();
+    chartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: data.map(d => 'Year ' + d.year),
+            datasets: [
+                { label: 'Portfolio Value', data: data.map(d => d.value), borderColor: '#f0b429', fill: false, tension: 0.3 },
+                { label: 'Original Value', data: data.map(d => d.target), borderColor: '#ef4444', borderDash: [5,5], fill: false }
+            ]
+        },
+        options: { responsive: true, plugins: { legend: { labels: { color: '#94a3b8' } } },
+            scales: { x: { ticks: { color: '#64748b' } }, y: { ticks: { color: '#64748b', callback: v => '$' + (v/1000).toFixed(0) + 'k' } } } }
+    });
+}
+</script>
+</body>
+</html>
